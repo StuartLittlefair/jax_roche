@@ -2,10 +2,9 @@ from .lagrangian_points import xl11, xl12, xl1
 from .methods import rtsafe
 from .potentials import rpot1, rpot2, rpot
 from .vector import Vec3
-from .types import Star
 from jax.lax import cond, fori_loop
 from jax import numpy as jnp
-from jax import grad, jit
+from jax import grad, jit, vmap
 from functools import partial
 
 
@@ -115,20 +114,17 @@ def lobe2(q, n=200):
 
     gradf = grad(root_func)
 
-    def loop_body(i, state):
+    def solve(i):
         theta = 2.0 * jnp.pi * i / (n - 1)
         dx = -jnp.cos(theta)
         dy = jnp.sin(theta)
         f = partial(root_func, dx=dx, dy=dy)
         df = partial(gradf, dx=dx, dy=dy)
         rad = rtsafe(f, df, lower, upper)
-        state["x"] = state["x"].at[i].set(1.0 + rad * dx)
-        state["y"] = state["y"].at[i].set(rad * dy)
-        return state
+        return 1.0 + rad * dx, rad * dy
 
-    init_state = dict(x=jnp.zeros(n), y=jnp.zeros(n))
-    end_state = fori_loop(0, n, loop_body, init_state)
-    return end_state["x"], end_state["y"]
+    x, y = vmap(solve)(jnp.arange(n))
+    return x, y
 
 
 @jit
@@ -166,7 +162,7 @@ def lobe1(q, n=200):
 
     gradf = grad(root_func)
 
-    def loop_body(i, state):
+    def loop_body(i):
         theta = 2.0 * jnp.pi * i / (n - 1)
         dx = -jnp.cos(theta)
         dy = jnp.sin(theta)
@@ -174,10 +170,7 @@ def lobe1(q, n=200):
         f = partial(root_func, dx=dx, dy=dy)
         df = partial(gradf, dx=dx, dy=dy)
         rad = rtsafe(f, df, lower, upper)
-        state["x"] = state["x"].at[i].set(rad * dx)
-        state["y"] = state["y"].at[i].set(rad * dy)
-        return state
+        return rad * dx, rad * dy
 
-    init_state = dict(x=jnp.zeros(n), y=jnp.zeros(n))
-    end_state = fori_loop(0, n, loop_body, init_state)
-    return end_state["x"], end_state["y"]
+    x, y = vmap(solve)(jnp.arange(n))
+    return x, y
