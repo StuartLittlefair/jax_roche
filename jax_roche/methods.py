@@ -77,7 +77,6 @@ def rtsafe(f, gradf, lower, upper, MAXIT=100, ACC=1.0e-7):
 
         # update new state
         fx = f(x)
-        # xl, xh = cond(fx < 0.0, lambda _: (x, xh), lambda _: (xl, x), None)
         xl = jnp.where(fx < 0.0, x, xl)
         xh = jnp.where(fx < 0.0, xh, x)
 
@@ -99,7 +98,6 @@ def rtsafe(f, gradf, lower, upper, MAXIT=100, ACC=1.0e-7):
         fx = f(x)
 
         # update new state
-        # xl, xh = cond(fx < 0.0, lambda _: (x, xh), lambda _: (xl, x), None)
         below = fx < 0.0
         xl = jnp.where(below, x, xl)
         xh = jnp.where(below, xh, x)
@@ -140,13 +138,6 @@ def rtsafe(f, gradf, lower, upper, MAXIT=100, ACC=1.0e-7):
         """
         x, xold, _, _, n, _, _ = state
         return (n < MAXIT) & (jnp.fabs(x - xold) > ACC * jnp.fabs(x))
-
-    def body(state, _):
-        """
-        The main function to repeat
-        """
-        keep_going = stop_cond(state)
-        return cond(keep_going, take_step, noop, state)
 
     # setup
 
