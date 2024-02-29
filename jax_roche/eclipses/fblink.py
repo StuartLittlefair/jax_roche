@@ -39,7 +39,7 @@ def fblink(q, position, earth, ffac=1.0, acc=0.0001, star=2, spin=1):
     eclipsed: bool
         True if the point is eclipsed, False if not
     """
-    # radius and potential of reference sphere
+    # radius of reference sphere and corresponding Roche potential
     rref, pref = ref_sphere(q, star, spin, ffac)
     # centre of mass of star
     cofm = jnp.where(star == 1, jnp.array([0.0, 0.0, 0.0]), jnp.array([1.0, 0.0, 0.0]))
@@ -88,3 +88,26 @@ def _step_and_solve(state):
         )
 
     df = grad(f)
+
+    # evaluate potential along line. cpp-roche breaks this up
+    # into a fancy while loop allowing for more speed?
+    lam = jnp.linspace(state["lam1"], state["lam2"], 100)
+    pot = vmap(f)(lam)
+    f1 = f(state["lam1"])
+    f2 = f(state["lam2"])
+
+    def brent(state):
+        return state["pref"] - 0.1
+
+    return cond(
+        jnp.any(pot < state["pref"]),
+        lambda state: True,  # below reference potential
+        lambda state: cond(  # not below reference potential, but
+            jnp.any(pot < f1) & jnp.any(pot < f2),  # below potential at ends
+            lambda state: brent(state)
+            < state["pref"],  # use brent to compare min to pref
+            lambda state: False,  # minimum not bracketed, so no eclipse
+            state,
+        ),
+        state,
+    )
