@@ -2,6 +2,7 @@ from ..vector import xhat, Vec3
 from ..lagrangian_points import xl1
 from ..potentials import rpot_val
 from ..roche_lobes import ref_sphere
+from ..methods import brent
 from .sphere_eclipse import sphere_eclipse
 
 from functools import partial
@@ -96,8 +97,16 @@ def _step_and_solve(state):
     f1 = f(state["lam1"])
     f2 = f(state["lam2"])
 
-    def brent(state):
-        return state["pref"] - 0.1
+    # find minimum potential
+    def minpot(state):
+        return brent(
+            f,
+            0.5 * (state["lam1"] + state["lam2"]),
+            state["lam1"],
+            state["lam2"],
+            MAXIT=100,
+            ACC=state["acc"],
+        )
 
     return cond(
         jnp.any(pot < state["pref"]),
@@ -105,7 +114,7 @@ def _step_and_solve(state):
         lambda state: cond(  # not below reference potential, but
             jnp.any(pot < f1) & jnp.any(pot < f2),  # below potential at ends
             # hard case - use brent algorithm to compare min to pref
-            lambda state: brent(state) < state["pref"],
+            lambda state: minpot(state) < state["pref"],
             lambda state: False,  # minimum not bracketed, so no eclipse
             state,
         ),
