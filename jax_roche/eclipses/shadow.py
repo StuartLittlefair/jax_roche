@@ -1,0 +1,2 @@
+def shadow():
+    raise NotImplementedError

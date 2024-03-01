@@ -174,3 +174,15 @@ def lobe1(q, n=200):
 
     x, y = vmap(solve)(jnp.arange(n))
     return x, y
+
+
+def vlobe1(q, n=200):
+    raise NotImplementedError
+
+
+def vlobe2(q, n=200):
+    raise NotImplementedError
+
+
+def face():
+    raise NotImplementedError
