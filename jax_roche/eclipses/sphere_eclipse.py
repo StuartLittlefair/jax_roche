@@ -11,7 +11,7 @@ def sphere_eclipse(earth, position, centre, rsphere):
     This will also return the multiplier values giving the cut points.
     These can then be used as starting points for Roche lobe computations.
 
-    Points inside the sphere are regarded as being eclipsed with the lower mulitplier set = 0.
+    Points inside the sphere are regarded as being eclipsed with the lower multiplier set = 0.
 
     See https://en.wikipedia.org/wiki/Line–sphere_intersection for method
 

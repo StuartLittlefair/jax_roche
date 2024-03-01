@@ -2,6 +2,7 @@ from ..vector import xhat, intersection_line_sphere, Vec3
 from ..lagrangian_points import xl1
 from ..potentials import rpot
 from ..roche_lobes import ref_sphere
+from .sphere_eclipse import sphere_eclipse
 
 from functools import partial
 from jax.lax import cond, while_loop
@@ -28,7 +29,7 @@ def calc_cache(q):
 
 
 @jit
-def blink(q, position, earth, acc=0.0001):
+def blink(q, position, earth, acc=0.1):
     """
     This routine finds if a point in a semi-detached binary is occulted by the donor star.
     It works by first eliminating as many cases as possible that are far from being
@@ -77,10 +78,11 @@ def blink(q, position, earth, acc=0.0001):
     # if dist2 is negative then they both are and there is no eclipse (the
     # sphere is behind the position from the PoV of the observer).
     dist1, dist2 = intersection_line_sphere(xhat, cache["rsphere"], position, earth)
+    eclipsed, dist1, dist2 = sphere_eclipse(earth, position, xhat, cache["rsphere"])
 
     state["dist1"], state["dist2"] = dist1, dist2
     return cond(
-        (jnp.isnan(dist1) & jnp.isnan(dist2)) | (dist2 <= 0.0),
+        ~eclipsed,
         lambda *args: False,
         _blink_step1,
         q,
@@ -110,7 +112,7 @@ def _blink_step1(q, position, earth, state, cache):
     return cond(
         closest == xhat,
         lambda *args: True,
-        _blink_step3,
+        _blink_step2,
         q,
         position,
         earth,
@@ -147,22 +149,22 @@ def _blink_step3(q, position, earth, state, cache):
     # positive if potential is increasing along LOS towards earth
     derivative = gradp(q, p).dot(earth)
 
-    # if Roche Potential is decreasing along LOS towards earth, step towards Earth
-    # otherwise, step away
+    # if Roche Potential is increasing along LOS towards earth, step away from Earth
     p1 = state["dist"]
-    p2 = jnp.where(derivative < 0.0, state["dist2"], state["dist1"])
+    p2 = jnp.where(derivative >= 0.0, state["dist1"], state["dist2"])
     nstep = jnp.floor(0.5 + jnp.fabs(p2 - p1) / state["step"]).astype("int32")
 
     def continue_cond(state):
         # stop if we've reached the end or the potential is less than the critical potential
-        n, pot = state
-        return (n < nstep) & (pot >= cache["crit"])
+        n, min_pot = state
+        return (n < nstep) & (min_pot >= cache["crit"])
 
     def step(state):
-        n, pot = state
+        n, min_pot = state
         gamma = p1 + (p2 - p1) * n / nstep
-        position = p + gamma * earth
-        return (n + 1, rpot(q, position))
+        newpos = position + gamma * earth
+        min_pot = jnp.minimum(min_pot, rpot(q, newpos))
+        return (n + 1, min_pot)
 
     nsteps_taken, min_pot = while_loop(continue_cond, step, (0, 1.0))
-    return nsteps_taken < nstep
+    return min_pot < cache["crit"]

@@ -70,12 +70,7 @@ def fblink(q, position, earth, ffac=1.0, acc=0.0001, star=2, spin=1.0):
     return cond(
         ~eclipsed,  # not eclipsed
         lambda state: False,
-        lambda state: cond(
-            state["lam1"] == 0,  # line does not intersect sphere
-            lambda state: True,
-            _step_and_solve,
-            state,
-        ),
+        _step_and_solve,
         state,
     )
 
