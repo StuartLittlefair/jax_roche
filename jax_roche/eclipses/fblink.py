@@ -5,13 +5,13 @@ from ..roche_lobes import ref_sphere
 from ..methods import brent
 from .sphere_eclipse import sphere_eclipse
 
-from functools import partial
 from jax.lax import cond, while_loop
 from jax import numpy as jnp
 from jax import jit, grad, vmap
 
 
-def fblink(q, position, earth, ffac=1.0, acc=0.0001, star=2, spin=1):
+@jit
+def fblink(q, position, earth, ffac=1.0, acc=0.0001, star=2, spin=1.0):
     """
     Computes whether a point in a semi-detached binary is eclipsed or not.
 
@@ -68,9 +68,14 @@ def fblink(q, position, earth, ffac=1.0, acc=0.0001, star=2, spin=1):
     )
 
     return cond(
-        eclipsed,  # not eclipsed
-        lambda state: state["lam1"] == 0,  # inside sphere
-        _step_and_solve,
+        ~eclipsed,  # not eclipsed
+        lambda state: False,
+        lambda state: cond(
+            state["lam1"] == 0,  # line does not intersect sphere
+            lambda state: True,
+            _step_and_solve,
+            state,
+        ),
         state,
     )
 
@@ -88,12 +93,8 @@ def _step_and_solve(state):
             lam,
         )
 
-    df = grad(f)
-
-    # evaluate potential along line. cpp-roche breaks this up
-    # into a fancy while loop allowing for more speed?
-    lam = jnp.linspace(state["lam1"], state["lam2"], 100)
-    pot = vmap(f)(lam)
+    # evaluate potential between end points
+    pot = f(0.5 * (state["lam1"] + state["lam2"]))
     f1 = f(state["lam1"])
     f2 = f(state["lam2"])
 
@@ -109,10 +110,10 @@ def _step_and_solve(state):
         )
 
     return cond(
-        jnp.any(pot < state["pref"]),
+        pot < state["pref"],
         lambda state: True,  # below reference potential
         lambda state: cond(  # not below reference potential, but
-            jnp.any(pot < f1) & jnp.any(pot < f2),  # below potential at ends
+            (pot < f1) & (pot < f2),  # below potential at ends
             # hard case - use brent algorithm to compare min to pref
             lambda state: minpot(state) < state["pref"],
             lambda state: False,  # minimum not bracketed, so no eclipse
