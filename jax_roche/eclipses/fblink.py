@@ -95,7 +95,7 @@ def _step_and_solve(state):
 
     # find minimum potential
     def minpot(state):
-        return brent(
+        minpos = brent(
             f,
             0.5 * (state["lam1"] + state["lam2"]),
             state["lam1"],
@@ -103,6 +103,7 @@ def _step_and_solve(state):
             MAXIT=100,
             ACC=state["acc"],
         )
+        return f(minpos)
 
     return cond(
         pot < state["pref"],
