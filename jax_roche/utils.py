@@ -70,8 +70,65 @@ def findphi(q, i):
     raise NotImplementedError
 
 
-def findq(i, dphi):
-    raise NotImplementedError
+@jit
+def findq(iangle, dphi, acc=1.0e-4, dq=1.0e-5, q_low=0.001, q_high=2.0):
+    """
+    computes mass ratio for a given inclination and phase width.
+
+    Parameters
+    ----------
+    iangle : float
+        inclination
+    deltaphi : float
+        phase width
+    acc : float, optional
+        accuracy to use with blink, by default 1.e-4
+    dq : float, optional
+        accuracy in the result. Between 0 and 0.1, by default 1.e-5
+    q_low : float, optional
+        lower limit of mass ratio, by default 0.001
+    q_high : float, optional
+        upper limit of mass ratio, by default 2.0
+    """
+    # |phase| at ingress and egress
+    phi = 0.5 * dphi
+    earth = set_earth(iangle, phi)
+    origin = Vec3(0.0, 0.0, 0.0)
+
+    # check if eclipse occurs at the lower and upper limits
+    eclipse_low = fblink(q_low, origin, earth, acc=acc)
+    eclipse_high = fblink(q_high, origin, earth, acc=acc)
+
+    def _search_q(state):
+        def loop_cond(state):
+            q_low, q_high = state
+            return q_high - q_low > dq
+
+        def step(state):
+            q_low, q_high = state
+            q = 0.5 * (q_low + q_high)
+            eclipse = fblink(q, origin, earth, acc=acc)
+            q_low, q_high = jnp.where(
+                eclipse, jnp.array([q_low, q]), jnp.array([q, q_high])
+            )
+            return q_low, q_high
+
+        state = while_loop(loop_cond, step, state)
+        return 0.5 * (state[0] + state[1])
+
+    state = (q_low, q_high)
+    q = cond(
+        eclipse_low & eclipse_high,
+        lambda state: -2.0,
+        lambda state: cond(
+            ~eclipse_low & ~eclipse_high,
+            lambda state: -1.0,
+            _search_q,
+            state,
+        ),
+        state,
+    )
+    return q
 
 
 def qirbs(deltaphi, pbi, pbe, ilo=78.0, ihi=90.0, rlo=0.1):
