@@ -3,6 +3,7 @@ A Cartesian vector class that JAX understands
 
 Based on https://github.com/google/jax/blob/63c06ef77e84bb5b3582fe23b17d8dfd2f5ecd0c/tests/custom_object_test.py
 """
+
 import jax.numpy as jnp
 from jax.lax import cond
 from jax import tree_util
@@ -131,6 +132,31 @@ class Vec3:
 xhat = Vec3(1.0, 0.0, 0.0)
 yhat = Vec3(0.0, 1.0, 0.0)
 zhat = Vec3(0.0, 0.0, 1.0)
+
+
+def set_earth(iangle, phase):
+    """
+    Calculates vector to earth at a given inclination and phase
+
+    Parameters
+    ----------
+    iangle: float
+        The inclination of the Earth's orbit in degrees
+    phase: float
+        The phase of the Earth's orbit in radians
+
+    Returns
+    -------
+    Vec3
+        The vector pointing towards earth
+    """
+    iangle = jnp.deg2rad(iangle)
+    cosi = jnp.cos(iangle)
+    sini = jnp.sin(iangle)
+    cosp = jnp.cos(2 * jnp.pi * phase)
+    sinp = jnp.sin(2 * jnp.pi * phase)
+
+    return Vec3(sini * cosp, -sini * sinp, cosi)
 
 
 @jit
