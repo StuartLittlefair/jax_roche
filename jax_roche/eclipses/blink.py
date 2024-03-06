@@ -77,7 +77,7 @@ def blink(q, position, earth, acc=0.1):
     # if one is nan the line just touches the sphere
     # if dist2 is negative then they both are and there is no eclipse (the
     # sphere is behind the position from the PoV of the observer).
-    dist1, dist2 = intersection_line_sphere(xhat, cache["rsphere"], position, earth)
+    # dist1, dist2 = intersection_line_sphere(xhat, cache["rsphere"], position, earth)
     eclipsed, dist1, dist2 = sphere_eclipse(earth, position, xhat, cache["rsphere"])
 
     state["dist1"], state["dist2"] = dist1, dist2

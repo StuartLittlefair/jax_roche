@@ -1,5 +1,4 @@
 from ..vector import xhat, Vec3
-from ..lagrangian_points import xl1
 from ..potentials import rpot_val
 from ..roche_lobes import ref_sphere
 from ..methods import brent
