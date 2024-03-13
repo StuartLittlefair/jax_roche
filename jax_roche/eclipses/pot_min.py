@@ -12,7 +12,7 @@ and ask the question "does any region in (ϕ, λ) space drop below the critical 
 """
 
 from collections import namedtuple
-from jax import grad, jit, vmap
+from jax import grad, jit, vmap, hessian
 from jax.lax import cond, while_loop
 from jax import numpy as jnp
 
@@ -159,11 +159,10 @@ def pot_min(
             state.params, state.direction, state.bounds, extras
         )
 
-        # calculate the position and potential at new position
+        # calculate the potential and gradient at new position
         params = jnp.array([phi, lammin])
         pot = rpot_philam(params, extras)
         gradient = drpot(params, extras)
-        n_iters = state.n_iters + 1
 
         # bfgs update to direction (see eq 6.17 Nocedal and Wright)
         yk = (gradient - state.gradient)[..., None]
@@ -175,6 +174,7 @@ def pot_min(
         direction = -new_H_k @ gradient
 
         # update the state
+        n_iters = state.n_iters + 1
         state = state._replace(
             direction=direction,
             pmin=pmin,
@@ -187,26 +187,32 @@ def pot_min(
         )
         return state
 
-    def _perform_minimisation(state):
+    def _perform_minimisation(args):
+        params, extras, bounds, pot = args
+        H0 = jnp.linalg.inv(hessian(rpot_philam, argnums=0)(params, extras))
+        gradient = drpot(params, extras)
+        state = PotMinState(
+            direction=gradient,
+            pmin=pot,
+            pot=pot,
+            params=params,
+            gradient=gradient,
+            H_k=H0,
+            bounds=bounds,
+            jammed=False,
+            n_iters=0,
+        )
         state = while_loop(_loop_cond, _loop_body, state)
         # TODO: JAMMED ETC
         eclipsed = state.pmin < pref
         phi, lam = state.params
         return eclipsed, phi, lam
 
-    state = PotMinState(
-        direction=drpot(params, extras),
-        pmin=pot,
-        pot=pot,
-        params=params,
-        gradient=drpot(params, extras),
-        H_k=jnp.eye(2),
-        bounds=bounds,
-        jammed=False,
-        n_iters=0,
-    )
     return cond(
-        pot < pref, lambda state: (True, phi, lam), _perform_minimisation, state
+        pot < pref,
+        lambda _: (True, phi, lam),
+        _perform_minimisation,
+        (params, extras, bounds, pot),
     )
 
 
