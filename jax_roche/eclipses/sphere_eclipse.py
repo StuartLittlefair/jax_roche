@@ -98,7 +98,7 @@ def _sphere_eclipse_any_case1(d, cosi, sini, fac, BQUAD, CQUAD, PDIST):
 
     # now compute the phase range where the eclipse occurs
     def _compute_phases(d, cosi, sini, CQUAD, PDIST):
-        delta = jnp.arccos(cosi * d.z - jnp.sqrt(CQUAD)) / (sini * PDIST)
+        delta = jnp.arccos((cosi * d.z + jnp.sqrt(CQUAD)) / (sini * PDIST))
         phi = jnp.arctan2(d.y, -d.x)
         phi1 = (phi - delta) / (2.0 * jnp.pi)
         phi1 -= jnp.floor(phi1)
